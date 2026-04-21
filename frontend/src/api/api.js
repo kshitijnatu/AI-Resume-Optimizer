@@ -102,3 +102,19 @@ export const streamRankApplications = async (
         onChunk(tail);
     }
 };
+
+export const downloadOptimizedResumes = async (candidateFiles, jobDescriptionFiles) => {
+    const formData = new FormData();
+    candidateFiles.forEach((file) => formData.append('files', file));
+    jobDescriptionFiles.forEach((file) => formData.append('job_description_files', file));
+
+    const response = await api.post('/optimize-resumes/download', formData, {
+        responseType: 'blob',
+    });
+
+    const disposition = response.headers?.['content-disposition'] ?? '';
+    const match = disposition.match(/filename="([^"]+)"/i);
+    const filename = match?.[1] ?? 'optimized-resumes.zip';
+
+    return { blob: response.data, filename };
+};

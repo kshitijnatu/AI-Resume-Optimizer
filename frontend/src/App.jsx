@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import Markdown from 'react-markdown'
 import './App.css'
-import { streamRankApplications } from './api/api'
+import { downloadOptimizedResumes, streamRankApplications } from './api/api'
 
 function App() {
-  const [jobDescriptionFile, setJobDescriptionFile] = useState(null)
+  const [jobDescriptionFiles, setJobDescriptionFiles] = useState([])
   const [singleFile, setSingleFile] = useState(null)
   const [multipleFiles, setMultipleFiles] = useState([])
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isOptimizing, setIsOptimizing] = useState(false)
 
   const handleSingleFileChange = (e) => {
     setSingleFile(e.target.files?.[0] ?? null)
@@ -19,7 +20,7 @@ function App() {
   }
 
   const handleJobDescriptionFileChange = (e) => {
-    setJobDescriptionFile(e.target.files?.[0] ?? null)
+    setJobDescriptionFiles(Array.from(e.target.files ?? []))
   }
 
   const handleRankApplications = async () => {
@@ -32,13 +33,45 @@ function App() {
     setIsLoading(true)
     try {
       setResponse('')
-      await streamRankApplications(candidateFiles, jobDescriptionFile, (chunk) => {
+      const firstJobDescriptionFile = jobDescriptionFiles[0] ?? null
+      await streamRankApplications(candidateFiles, firstJobDescriptionFile, (chunk) => {
         setResponse((prev) => prev + chunk)
       })
     } catch (error) {
       setResponse(error?.message ?? 'Upload failed. Please try again.')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleGenerateOptimizedResumes = async () => {
+    const candidateFiles = [...(singleFile ? [singleFile] : []), ...multipleFiles]
+    if (candidateFiles.length === 0) {
+      setResponse('Please select at least one base resume first.')
+      return
+    }
+    if (jobDescriptionFiles.length === 0) {
+      setResponse('Please upload at least one job description PDF first.')
+      return
+    }
+
+    setIsOptimizing(true)
+    try {
+      setResponse('Generating optimized resume PDFs. Your download will start automatically...')
+      const { blob, filename } = await downloadOptimizedResumes(candidateFiles, jobDescriptionFiles)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      setResponse(`Downloaded ${filename}.`)
+    } catch (error) {
+      setResponse(error?.message ?? 'Failed to generate optimized resumes. Please try again.')
+    } finally {
+      setIsOptimizing(false)
     }
   }
 
@@ -86,15 +119,16 @@ function App() {
 
       <div className="app-grid">
         <section className="upload-card">
-          <h2>Job description</h2>
-          <p className="upload-hint">Upload one JD file used only as scoring criteria.</p>
+          <h2>Job descriptions</h2>
+          <p className="upload-hint">Upload one or more JD PDFs. One optimized resume is created per JD.</p>
           <form className="upload-form" method="post" encType="multipart/form-data">
             <div className="file-field">
-              <span className="file-field-label">JD file (optional)</span>
+              <span className="file-field-label">JD files</span>
               <input
                 className="file-input"
                 type="file"
-                name="job_description_file"
+                name="job_description_files"
+                multiple
                 accept=".pdf,application/pdf"
                 onChange={handleJobDescriptionFileChange}
               />
@@ -142,9 +176,18 @@ function App() {
         type="button" 
         className="btn btn-primary" 
         onClick={handleRankApplications} 
-        disabled={isLoading}
+        disabled={isLoading || isOptimizing}
       >
           {isLoading ? 'Ranking...' : 'Rank Applications'}
+      </button>
+
+      <button
+        type="button"
+        className="btn btn-primary"
+        onClick={handleGenerateOptimizedResumes}
+        disabled={isLoading || isOptimizing}
+      >
+        {isOptimizing ? 'Generating PDFs...' : 'Generate Optimized Resume PDFs'}
       </button>
 
       <section className="response-panel" aria-live="polite">
