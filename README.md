@@ -1,17 +1,19 @@
 # AI Resume Ranker
 
 AI Resume Ranker is a full-stack app that:
-- uploads candidate resume PDFs
-- optionally uploads one job description PDF
+- uploads one or many base resume PDFs
+- uploads one or many job description PDFs
 - extracts text from PDFs on the backend
-- sends content to OpenAI for comparative ranking
-- streams the ranking response back to the frontend in real time
+- generates optimized resumes aligned to each job description
+- returns downloadable PDFs (packed into a ZIP)
+- also supports live streamed candidate ranking output
 
 ## Tech Stack
 
 - Frontend: React + Vite
 - Backend: FastAPI + Python 3.12+
 - PDF extraction: `pdfminer.six`
+- PDF generation: `reportlab`
 - LLM: OpenAI Chat Completions (`gpt-4o-mini`)
 
 ## Project Structure
@@ -73,17 +75,28 @@ Frontend runs on `http://localhost:5173`.
 ## How to Use
 
 1. Open the frontend in your browser (`http://localhost:5173`).
-2. Upload candidate resumes using:
+2. Upload base candidate resumes using:
    - **Single resume** input and/or
    - **Multiple resumes** input.
-3. (Optional) Upload one **Job description** PDF.
-4. Click **Rank Applications**.
-5. Watch the response stream live in the Response panel.
+3. Upload one or many **Job description** PDFs.
+4. Choose one of these actions:
+   - Click **Rank Applications** to stream ranking output in the Response panel.
+   - Click **Generate Optimized Resume PDFs** to generate one tailored resume per job description and download a ZIP file.
+
+## Optimized Resume Output
+
+- The app generates one optimized resume for each uploaded job description.
+- Output files are named in this format:
+  - `JobTitle-YourName.pdf`
+- All generated PDFs are downloaded together as:
+  - `optimized-resumes-YourName.zip`
+- Markdown-like model output is converted into formatted PDF text:
+  - headers, bullet points, spacing, and wrapped paragraphs
 
 ## Current Ranking Behavior
 
 - Only files uploaded in resume inputs are ranked as candidates.
-- Job description file is treated as scoring context only.
+- For ranking, the first uploaded job description is used as scoring context.
 - If no job description is uploaded, the model ranks resumes using general criteria.
 
 ## API Endpoints
@@ -108,6 +121,16 @@ Multipart form fields:
 Response type:
 - `text/plain` stream (chunked)
 
+### `POST /optimize-resumes/download`
+Generates optimized resume PDFs and returns a ZIP download.
+
+Multipart form fields:
+- `files`: one or many base resume PDFs (required)
+- `job_description_files`: one or many job description PDFs (required)
+
+Response type:
+- `application/zip` with `Content-Disposition: attachment`
+
 ### Legacy Routes
 
 These routes still exist for earlier flow/testing:
@@ -121,11 +144,15 @@ These routes still exist for earlier flow/testing:
 - Streaming is implemented with:
   - FastAPI `StreamingResponse` on backend
   - `fetch(...).body.getReader()` on frontend
+- Optimized resume generation is non-streaming and delivered as a ZIP blob download.
 
 ## Troubleshooting
 
 - **`No files uploaded.`**
   - Upload at least one candidate resume PDF before ranking.
+
+- **`Upload at least one job description PDF.`**
+  - Add at least one JD file before generating optimized resumes.
 
 - **OpenAI auth errors**
   - Check `OPENAI_API_KEY` in `backend/.env`.
@@ -138,3 +165,7 @@ These routes still exist for earlier flow/testing:
 - **No/poor PDF text extraction**
   - Some scanned PDFs may not contain selectable text.
   - Use machine-readable PDFs when possible.
+
+- **No optimized resumes generated**
+  - Ensure both resume and JD PDFs have extractable text.
+  - Try cleaner source PDFs if files are image/scanned only.
